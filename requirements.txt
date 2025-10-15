@@ -1,4 +1,0 @@
-django==5.2.*
-django-debug-toolbar==5.2.*
-Pillow==11.2.*
-environs[django]==14.2.*

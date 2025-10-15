@@ -142,3 +142,7 @@ dmypy.json
 cython_debug/
 
 .parcel-cache/
+.nvmrc
+Makefile
+.idea/
+.python-version
