@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.templatetags.static import static
 from django.views.decorators.http import require_POST
 
-from .models import Product, Order, OrderProductItem
+from .models import Product, Order, OrderItem
 
 
 def banners_list_api(request):
@@ -76,7 +76,7 @@ def register_order(request: WSGIRequest):
 
         for item in order_data['products']:
             product = Product.objects.available().get(pk=item['product'])
-            OrderProductItem.objects.create(
+            OrderItem.objects.create(
                 order=order,
                 product=product,
                 quantity=item['quantity'],

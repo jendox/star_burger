@@ -153,18 +153,18 @@ class Order(models.Model):
         return f"{self.first_name} {self.last_name}"
 
 
-class OrderProductItem(models.Model):
+class OrderItem(models.Model):
     order = models.ForeignKey(
         Order,
         verbose_name='Заказ',
         on_delete=models.CASCADE,
-        related_name='product_items',
+        related_name='items',
     )
     product = models.ForeignKey(
         Product,
         verbose_name='Товар',
         on_delete=models.CASCADE,
-        related_name='product_items',
+        related_name='order_items',
     )
     quantity = models.PositiveIntegerField(
         'Количество',
