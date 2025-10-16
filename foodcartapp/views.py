@@ -62,9 +62,17 @@ def product_list_api(request):
 
 @api_view(['POST'])
 @transaction.atomic
-def register_order(request: Request):
+def register_order(request: Request) -> Response:
     try:
         order_data = request.data
+        products = order_data['products']
+        if products is None:
+            raise ValueError('products: Это поле не может быть пустым.')
+        if not isinstance(products, list):
+            raise ValueError(f'products: Ожидался list со значениями, но был получен "{type(products).__name__}"')
+        if not products:
+            raise ValueError('products: Этот список не может быть пустым.')
+
         order = Order(
             first_name=order_data['firstname'],
             last_name=order_data['lastname'],
@@ -81,11 +89,11 @@ def register_order(request: Request):
                 quantity=item['quantity'],
             )
     except ValueError as e:
-        Response({'error': f'Invalid json: {e}'}, status=400)
+        return Response({'error': str(e)}, status=400)
     except KeyError as e:
-        Response({'error': f'Field is missing: {e}'}, status=400)
+        return Response({'error': f"{e.args[0]}: Обязательное поле."}, status=400)
     except Product.DoesNotExist as e:
-        Response({'error': f'Product not found: {e}'}, status=400)
+        return Response({'error': f'Product not found: {e}'}, status=400)
     except Exception as e:
-        Response({'error': 'Unexpected error'}, status=500)
+        return Response({'error': f'Unexpected error: {e}'}, status=500)
     return Response({'success': True})
