@@ -6,6 +6,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import Product, Order, OrderItem
+from .serializers import OrderSerializer
 
 
 def banners_list_api(request):
@@ -63,37 +64,23 @@ def product_list_api(request):
 @api_view(['POST'])
 @transaction.atomic
 def register_order(request: Request) -> Response:
-    try:
-        order_data = request.data
-        products = order_data['products']
-        if products is None:
-            raise ValueError('products: Это поле не может быть пустым.')
-        if not isinstance(products, list):
-            raise ValueError(f'products: Ожидался list со значениями, но был получен "{type(products).__name__}"')
-        if not products:
-            raise ValueError('products: Этот список не может быть пустым.')
-
-        order = Order(
-            first_name=order_data['firstname'],
-            last_name=order_data['lastname'],
-            phone_number=order_data['phonenumber'],
-            address=order_data['address'],
+    serializer = OrderSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    order_data = serializer.validated_data
+    order = Order.objects.create(
+        firstname=order_data['firstname'],
+        lastname=order_data['lastname'],
+        phonenumber=order_data['phonenumber'],
+        address=order_data['address'],
+    )
+    products = [
+        OrderItem(
+            order=order,
+            product=product['product'],
+            quantity=product['quantity'],
         )
-        order.save()
+        for product in order_data['products']
+    ]
+    OrderItem.objects.bulk_create(products)
 
-        for item in order_data['products']:
-            product = Product.objects.available().get(pk=item['product'])
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=item['quantity'],
-            )
-    except ValueError as e:
-        return Response({'error': str(e)}, status=400)
-    except KeyError as e:
-        return Response({'error': f"{e.args[0]}: Обязательное поле."}, status=400)
-    except Product.DoesNotExist as e:
-        return Response({'error': f'Product not found: {e}'}, status=400)
-    except Exception as e:
-        return Response({'error': f'Unexpected error: {e}'}, status=500)
-    return Response({'success': True})
+    return Response({'success': request.data})
