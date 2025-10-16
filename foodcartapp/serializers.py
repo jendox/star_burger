@@ -10,8 +10,9 @@ class OrderItemSerializer(ModelSerializer):
 
 
 class OrderSerializer(ModelSerializer):
-    products = OrderItemSerializer(many=True, allow_empty=False)
+    products = OrderItemSerializer(many=True, allow_empty=False, write_only=True)
 
     class Meta:
         model = Order
-        fields = ['firstname', 'lastname', 'phonenumber', 'address', 'products']
+        fields = ['id', 'firstname', 'lastname', 'phonenumber', 'address', 'products']
+        read_only_fields = ['id']
