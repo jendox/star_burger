@@ -10,4 +10,7 @@ dependencies = [
     "Pillow==11.2.*",
     "environs[django]==14.2.*",
     "django-phonenumber-field[phonenumberslite]>=8.3.0",
+    "djangorestframework>=3.16.1",
+    "markdown>=3.9",
+    "django-filter>=25.2",
 ]

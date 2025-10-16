@@ -1,10 +1,9 @@
-import json
-
-from django.core.handlers.wsgi import WSGIRequest
 from django.db import transaction
 from django.http import JsonResponse
 from django.templatetags.static import static
-from django.views.decorators.http import require_POST
+from rest_framework.decorators import api_view
+from rest_framework.request import Request
+from rest_framework.response import Response
 
 from .models import Product, Order, OrderItem
 
@@ -61,11 +60,11 @@ def product_list_api(request):
     })
 
 
-@require_POST
+@api_view(['POST'])
 @transaction.atomic
-def register_order(request: WSGIRequest):
+def register_order(request: Request):
     try:
-        order_data = json.loads(request.body.decode('utf-8'))
+        order_data = request.data
         order = Order(
             first_name=order_data['firstname'],
             last_name=order_data['lastname'],
@@ -82,11 +81,11 @@ def register_order(request: WSGIRequest):
                 quantity=item['quantity'],
             )
     except ValueError as e:
-        JsonResponse({'error': f'Invalid json: {e}'}, status=400)
+        Response({'error': f'Invalid json: {e}'}, status=400)
     except KeyError as e:
-        JsonResponse({'error': f'Field is missing: {e}'}, status=400)
+        Response({'error': f'Field is missing: {e}'}, status=400)
     except Product.DoesNotExist as e:
-        JsonResponse({'error': f'Product not found: {e}'}, status=400)
+        Response({'error': f'Product not found: {e}'}, status=400)
     except Exception as e:
-        JsonResponse({'error': 'Unexpected error'}, status=500)
-    return JsonResponse({'success': True})
+        Response({'error': 'Unexpected error'}, status=500)
+    return Response({'success': True})
