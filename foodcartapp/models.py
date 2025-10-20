@@ -156,11 +156,11 @@ class Order(models.Model):
         verbose_name_plural = 'Заказы'
 
     def __str__(self) -> str:
-        return f"{self.firstname} {self.lastname} {self.address}"
+        return f'{self.firstname} {self.lastname} {self.address}'
 
     @property
     def full_name(self) -> str:
-        return f"{self.firstname} {self.lastname}"
+        return f'{self.firstname} {self.lastname}'
 
 
 class OrderItem(models.Model):
@@ -181,6 +181,12 @@ class OrderItem(models.Model):
         validators=[MinValueValidator(1)],
         default=1,
     )
+    price = models.DecimalField(
+        'Цена',
+        max_digits=8,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+    )
 
     class Meta:
         verbose_name = 'Элемент заказа'
@@ -190,4 +196,4 @@ class OrderItem(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.product.name} - {self.order.full_name}"
+        return f'{self.product.name} - {self.order.full_name}'

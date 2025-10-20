@@ -70,7 +70,11 @@ def register_order(request: Request) -> Response:
     products_data = order_data.pop('products')
     order = Order.objects.create(**order_data)
     products = [
-        OrderItem(order=order, **product)
+        OrderItem(
+            order=order,
+            price=product['product'].price,
+            **product,
+        )
         for product in products_data
     ]
     OrderItem.objects.bulk_create(products)
