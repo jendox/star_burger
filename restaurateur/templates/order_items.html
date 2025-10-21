@@ -14,16 +14,18 @@
    <table class="table table-responsive">
     <tr>
       <th>ID заказа</th>
-      <th>Стоимость заказа</th>
+      <th>Статус</th>
+      <th>Стоимость</th>
       <th>Клиент</th>
       <th>Телефон</th>
       <th>Адрес доставки</th>
       <th>Ссылка на админку</th>
     </tr>
 
-    {% for item in order_items %}
+    {% for item in active_order_items %}
       <tr>
         <td>{{ item.id }}</td>
+        <td>{{ item.get_status_display }}</td>
         <td>{{ item.total_cost }} руб.</td>
         <td>{{ item.full_name }}</td>
         <td>{{ item.phonenumber }}</td>

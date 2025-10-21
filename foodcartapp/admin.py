@@ -121,10 +121,11 @@ class OrderAdmin(admin.ModelAdmin):
     list_display = [
         'full_name',
         'address',
+        'status',
     ]
 
-    search_fields = [
-        'full_name',
+    list_filter = [
+        'status',
     ]
 
     inlines = [
