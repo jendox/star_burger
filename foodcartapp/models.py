@@ -144,11 +144,22 @@ class Order(models.Model):
         IN_DELIVERY = 'in_delivery', 'В пути'
         DELIVERED = 'delivered', 'Доставлен'
 
+    class PaymentMethodChoices(models.TextChoices):
+        ONLINE = 'online', 'Оплата онлайн'
+        CASH = 'cash', 'Наличными курьеру'
+        CARD = 'card', 'Банковской картой курьеру'
+
     status = models.CharField(
         'Статус',
         max_length=16,
         choices=OrderStatusChoices,
         default=OrderStatusChoices.ACCEPTED,
+        db_index=True,
+    )
+    payment_method = models.CharField(
+        max_length=8,
+        choices=PaymentMethodChoices,
+        default=PaymentMethodChoices.CASH,
         db_index=True,
     )
 
