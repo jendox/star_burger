@@ -1,46 +1,130 @@
 {% extends 'base_restaurateur_page.html' %}
 
-{% block title %}Необработанные заказы | Star Burger{% endblock %}
+{% block title %}Заказы | Star Burger{% endblock %}
 
 {% block content %}
+<style>
+  details {
+    cursor: pointer;
+  }
+
+  details summary {
+    list-style: none;
+    position: relative;
+    padding-left: 24px;
+  }
+
+  details summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details summary::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #666;
+    transition: transform 0.2s;
+  }
+
+  details[open] summary::before {
+    transform: translateY(-50%) rotate(90deg);
+  }
+
+  details[open] summary {
+    margin-bottom: 4px;
+    color: #2c5aa0;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0 0 0 20px;
+  }
+
+  tr.preparing {
+    background-color: #f6fff6;
+  }
+
+  tr.preparing td {
+    border-top: 2px solid #b4e0b4;
+  }
+
+  tr.no-restaurant {
+    background-color: #fffaf6;
+  }
+
+  tr.no-restaurant td {
+    border-top: 2px solid #ffd8b4;
+  }
+</style>
+
   <center>
-    <h2>Необработанные заказы</h2>
+    <h2>Заказы</h2>
   </center>
 
   <hr/>
   <br/>
-  <br/>
   <div class="container">
    <table class="table table-responsive">
-    <tr>
-      <th>ID заказа</th>
-      <th>Статус</th>
-      <th>Способ оплаты</th>
-      <th>Стоимость</th>
-      <th>Клиент</th>
-      <th>Телефон</th>
-      <th>Адрес доставки</th>
-      <th>Комментарий</th>
-      <th>Ссылка на админку</th>
-    </tr>
-
-    {% for item in active_order_items %}
+    <thead>
       <tr>
-        <td>{{ item.id }}</td>
-        <td>{{ item.get_status_display }}</td>
-        <td>{{ item.get_payment_method_display }}</td>
-        <td>{{ item.total_cost }} руб.</td>
-        <td>{{ item.full_name }}</td>
-        <td>{{ item.phonenumber }}</td>
-        <td>{{ item.address }}</td>
-        <td>{{ item.comment }}</td>
-        <td>
-          <a href="{% url 'admin:foodcartapp_order_change' object_id=item.id %}?next={{ request.get_full_path|urlencode }}">
-            Редактировать
-          </a>
-        </td>
+        <th>ID заказа</th>
+        <th>Статус</th>
+        <th>Способ оплаты</th>
+        <th>Стоимость</th>
+        <th>Клиент</th>
+        <th>Телефон</th>
+        <th>Адрес доставки</th>
+        <th>Комментарий</th>
+        <th style="width: 15em;">Рестораны</th>
+        <th>Ссылка на админку</th>
       </tr>
-    {% endfor %}
+    </thead>
+
+    <tbody>
+      {% for item in active_order_items %}
+        <tr class="{% if item.has_restaurant %}preparing{% else %}no-restaurant{% endif %}">
+          <td>{{ item.order_id }}</td>
+          <td>{{ item.status.label }}</td>
+          <td>{{ item.payment_method.label }}</td>
+          <td>{{ item.total_cost }} руб.</td>
+          <td>{{ item.client }}</td>
+          <td>{{ item.phonenumber }}</td>
+          <td>{{ item.address }}</td>
+          <td>{{ item.comment }}</td>
+          <td>
+            {% if item.has_restaurant %}
+              {{ item.restaurants.0.name }}
+            {% else %}
+              <details>
+                <summary>Развернуть</summary>
+                <ul>
+                  {% for restaurant in item.restaurants %}
+                    <li>{{ restaurant.name }}</li>
+                  {% empty %}
+                    <li>Нет ресторана, где есть все позиции</li>
+                  {% endfor %}
+                </ul>
+              </details>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{% url 'admin:foodcartapp_order_change' object_id=item.order_id %}?next={{ request.get_full_path|urlencode }}">
+              Редактировать
+            </a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="10" class="text-center">Нет активных заказов</td>
+        </tr>
+      {% endfor %}
+    </tbody>
    </table>
   </div>
 {% endblock %}

@@ -146,3 +146,16 @@ class OrderAdmin(admin.ModelAdmin):
         if redirect_url and url_has_allowed_host_and_scheme(redirect_url, settings.ALLOWED_HOSTS):
             return redirect(redirect_url)
         return result
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            changed = set(form.changed_data)
+            if 'restaurant' in changed and obj.restaurant_id and obj.status in {
+                Order.OrderStatusChoices.ACCEPTED,
+                Order.OrderStatusChoices.CONFIRMED,
+            }:
+                obj.status = Order.OrderStatusChoices.PREPARING
+
+            if 'called_at' in changed and obj.called_at and obj.status == Order.OrderStatusChoices.ACCEPTED:
+                obj.status = Order.OrderStatusChoices.CONFIRMED
+        super().save_model(request, obj, form, change)
