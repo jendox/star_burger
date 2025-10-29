@@ -1,14 +1,14 @@
 from collections import defaultdict
 from decimal import Decimal
 
-import requests
-from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.db.models import Sum, F, QuerySet, Count
+from django.db.models import Sum, F, QuerySet
 from django.utils import timezone
 from geopy.distance import distance as geopy_distance
 from phonenumber_field.modelfields import PhoneNumberField
+
+from geocache.models import GeocodedAddress
 
 
 class Restaurant(models.Model):
@@ -239,19 +239,6 @@ class Order(models.Model):
     def full_name(self) -> str:
         return f'{self.firstname} {self.lastname}'
 
-    def get_available_restaurants(self):
-        order_products_ids = self.products.values_list('product_id', flat=True)
-        available_restaurants = Restaurant.objects.filter(
-            menu_items__product_id__in=order_products_ids,
-            menu_items__availability=True
-        ).annotate(
-            available_products_count=Count('menu_items__product', distinct=True)
-        ).filter(
-            available_products_count=len(order_products_ids)
-        ).distinct()
-
-        return available_restaurants
-
     @classmethod
     def active_orders_with_restaurants(cls):
         # Получаем заказы и позиции заказа
@@ -259,25 +246,35 @@ class Order(models.Model):
         # Получаем рестораны с доступными продуктами
         menu_rows = list(RestaurantMenuItem.objects.available_menu_rows())
         # Группируем рестораны по продуктам
+        rest_products, rest_names, rest_addresses, rest_coords = cls._build_restorant_indexes(menu_rows)
+        # Группируем строки заказа в заказы
+        orders_map = cls._group_orders(order_rows)
+        # Подбираем рестораны или подставляем выбранный
+        cls._attach_restaurants(orders_map, rest_products, rest_names, rest_addresses, rest_coords)
+        # Итоговый список: необработанные сверху, далее по времени
+        return sorted(
+            orders_map.values(),
+            key=lambda x: (x['has_restaurant'], -x['created_at'].timestamp())
+        )
+
+    @staticmethod
+    def _build_restorant_indexes(menu_rows):
         rest_products = defaultdict(set)
         rest_names: dict[int, str] = {}
         rest_addresses: dict[int, str] = {}
         rest_coords: dict[int, tuple[float, float] | None] = {}
-        coords_cache: dict[str, tuple[float, float] | None] = {}
 
-        for r in menu_rows:
-            rid = r['restaurant_id']
-            rest_products[rid].add(r['product_id'])
-            if rid not in rest_names:
-                rest_names[rid] = r['restaurant__name']
-            if rid not in rest_addresses:
-                rest_addresses[rid] = r['restaurant__address']
-            if rid not in rest_coords:
-                address = rest_addresses[rid]
-                if address not in coords_cache:
-                    coords_cache[address] = fetch_coordinates(settings.YANDEX_API_KEY, address)
-                rest_coords[rid] = coords_cache[address]
-        # Группируем строки заказа в заказы
+        for row in menu_rows:
+            rid = row['restaurant_id']
+            rest_products[rid].add(row['product_id'])
+            rest_names[rid] = row['restaurant__name']
+            rest_addresses.setdefault(rid, row['restaurant__address'] or '')
+            for rid, address in rest_addresses.items():
+                rest_coords[rid] = GeocodedAddress.get_coordinates(address)
+        return rest_products, rest_names, rest_addresses, rest_coords
+
+    @staticmethod
+    def _group_orders(order_rows):
         orders_map = {}
         for row in order_rows:
             oid = row['order_id']
@@ -296,59 +293,52 @@ class Order(models.Model):
                     'restaurants': [],
                     'products': set(),
                     'total_cost': Decimal('0.00'),
-                    'order_coords': fetch_coordinates(settings.YANDEX_API_KEY, row['order__address']),
+                    'order_coords': GeocodedAddress.get_coordinates(row['order__address']),
                 }
             o['products'].add(row['product_id'])
             price = row['price'] if row['price'] is not None else Decimal('0.00')
             qty = row['quantity'] or 0
             o['total_cost'] += (price * qty)
-        # Подбираем рестораны или подставляем выбранный
-        for o in orders_map.values():
-            chosen_id = o['restaurant_id']
-            required = o['products']
-            o_latlon = o['order_coords']
+        return orders_map
 
-            def build_rest_entry(rid: int):
-                r_latlon = rest_coords.get(rid)
-                dist_km = None
-                if o_latlon and r_latlon:
-                    try:
-                        dist_km = round(geopy_distance(o_latlon, r_latlon).km, 2)
-                    except Exception:
-                        dist_km = None
-                return {
-                    'id': rid,
-                    'name': rest_names.get(rid, '—'),
-                    'address': rest_addresses.get(rid) or '',
-                    'coords': r_latlon or '',
-                    'distance_km': dist_km or 'неизвестно',  # float|None
-                }
+    @staticmethod
+    def _build_rest_entry(rid, rest_names, rest_addresses, rest_coords, order_coords):
+        rest_latlon = rest_coords.get(rid)
+        dist_km = None
+        if order_coords and rest_latlon:
+            try:
+                dist_km = round(geopy_distance(order_coords, rest_latlon).km, 2)
+            except Exception:
+                pass
+        return {
+            'id': rid,
+            'name': rest_names.get(rid, '—'),
+            'address': rest_addresses.get(rid) or '',
+            'coords': rest_latlon or '',
+            'distance_km': dist_km or 'неизвестно',
+        }
+
+    @classmethod
+    def _attach_restaurants(cls, orders_map, rest_products, rest_names, rest_addresses, rest_coords):
+        for order in orders_map.values():
+            chosen_id = order['restaurant_id']
+            required = order['products']
+            order_coords = order['order_coords']
 
             if chosen_id:
-                # выбран ресторан: показываем только его
-                o['restaurants'] = [build_rest_entry(chosen_id)]
+                order['restaurants'] = [
+                    cls._build_rest_entry(chosen_id, rest_names, rest_addresses, rest_coords, order_coords)
+                ]
             else:
                 fits = []
-                for rid, products in rest_products.items():
-                    if required.issubset(products):
-                        fits.append(build_rest_entry(rid))
-                # сортируем по расстоянию: сначала те, у кого расстояние посчитано (по возрастанию), затем None
-                fits.sort(key=lambda r: (r['distance_km'] is None,
-                                         r['distance_km'] if r['distance_km'] is not None else float('inf')))
-                o['restaurants'] = fits
+                for rid, prods in rest_products.items():
+                    if required.issubset(prods):
+                        fits.append(cls._build_rest_entry(rid, rest_names, rest_addresses, rest_coords, order_coords))
+                fits.sort(key=lambda r: (r['distance_km'] is None, r['distance_km'] or float('inf')))
+                order['restaurants'] = fits
 
-                # чтобы шаблон мог итерироваться
-            o['products'] = list(o['products'])
-            # флаг для сортировки: без выбранного — сверху
-            o['has_restaurant'] = bool(chosen_id)
-
-            # --- Итоговый список: необработанные сверху, далее по времени ---
-        orders_list = sorted(
-            orders_map.values(),
-            key=lambda x: (x['has_restaurant'], -x['created_at'].timestamp())
-        )
-
-        return orders_list
+            order['products'] = list(order['products'])
+            order['has_restaurant'] = bool(chosen_id)
 
 
 class OrderItemQuerySet(models.QuerySet):
@@ -411,21 +401,3 @@ class OrderItem(models.Model):
 
     def __str__(self) -> str:
         return f'{self.product.name} - {self.order.full_name}'
-
-
-def fetch_coordinates(apikey, address):
-    base_url = 'https://geocode-maps.yandex.ru/1.x'
-    response = requests.get(base_url, params={
-        'geocode': address,
-        'apikey': apikey,
-        'format': 'json',
-    })
-    response.raise_for_status()
-    found_places = response.json()['response']['GeoObjectCollection']['featureMember']
-
-    if not found_places:
-        return None
-
-    most_relevant = found_places[0]
-    lon, lat = most_relevant['GeoObject']['Point']['pos'].split(' ')
-    return lat, lon

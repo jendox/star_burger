@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'debug_toolbar',
     'phonenumber_field',
     'rest_framework',
+    'geocache.apps.GeocacheConfig',
 ]
 
 MIDDLEWARE = [
@@ -121,4 +122,4 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "bundles"),
 ]
 
-YANDEX_API_KEY = env.str('YANDEX_API_KEY')
+YANDEX_GEOCODER_API_KEY = env.str('YANDEX_GEOCODER_API_KEY')
