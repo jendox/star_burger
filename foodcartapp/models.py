@@ -1,10 +1,13 @@
 from collections import defaultdict
 from decimal import Decimal
 
+import requests
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Sum, F, QuerySet, Count
 from django.utils import timezone
+from geopy.distance import distance as geopy_distance
 from phonenumber_field.modelfields import PhoneNumberField
 
 
@@ -99,6 +102,16 @@ class Product(models.Model):
         return self.name
 
 
+class RestaurantMenuItemQuerySet(models.QuerySet):
+    def available_menu_rows(self):
+        """Рестораны с доступными продуктами"""
+        return (
+            self.filter(availability=True)
+            .values('restaurant_id', 'product_id', 'restaurant__name', 'restaurant__address')
+            .distinct()
+        )
+
+
 class RestaurantMenuItem(models.Model):
     restaurant = models.ForeignKey(
         Restaurant,
@@ -117,6 +130,8 @@ class RestaurantMenuItem(models.Model):
         default=True,
         db_index=True
     )
+
+    objects = RestaurantMenuItemQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'пункт меню ресторана'
@@ -239,41 +254,29 @@ class Order(models.Model):
 
     @classmethod
     def active_orders_with_restaurants(cls):
-        # Получаем заказы и позиции заказа (плоскими строками)
-        order_rows = list(
-            OrderItem.objects
-            .exclude(order__status='delivered')
-            .values(
-                'order_id',
-                'order__status',
-                'order__payment_method',
-                'order__firstname',
-                'order__lastname',
-                'order__phonenumber',
-                'order__address',
-                'order__comment',
-                'order__created_at',
-                'order__restaurant_id',
-                'product_id',
-                'price',
-                'quantity',
-            )
-            .order_by('order_id')
-        )
+        # Получаем заказы и позиции заказа
+        order_rows = list(OrderItem.objects.active_flat_rows())
         # Получаем рестораны с доступными продуктами
-        menu_rows = list(
-            RestaurantMenuItem.objects
-            .filter(availability=True)
-            .values('restaurant_id', 'product_id', 'restaurant__name')
-            .distinct()
-        )
+        menu_rows = list(RestaurantMenuItem.objects.available_menu_rows())
         # Группируем рестораны по продуктам
         rest_products = defaultdict(set)
-        rest_names = {}
+        rest_names: dict[int, str] = {}
+        rest_addresses: dict[int, str] = {}
+        rest_coords: dict[int, tuple[float, float] | None] = {}
+        coords_cache: dict[str, tuple[float, float] | None] = {}
+
         for r in menu_rows:
             rid = r['restaurant_id']
             rest_products[rid].add(r['product_id'])
-            rest_names[rid] = r['restaurant__name']
+            if rid not in rest_names:
+                rest_names[rid] = r['restaurant__name']
+            if rid not in rest_addresses:
+                rest_addresses[rid] = r['restaurant__address']
+            if rid not in rest_coords:
+                address = rest_addresses[rid]
+                if address not in coords_cache:
+                    coords_cache[address] = fetch_coordinates(settings.YANDEX_API_KEY, address)
+                rest_coords[rid] = coords_cache[address]
         # Группируем строки заказа в заказы
         orders_map = {}
         for row in order_rows:
@@ -293,6 +296,7 @@ class Order(models.Model):
                     'restaurants': [],
                     'products': set(),
                     'total_cost': Decimal('0.00'),
+                    'order_coords': fetch_coordinates(settings.YANDEX_API_KEY, row['order__address']),
                 }
             o['products'].add(row['product_id'])
             price = row['price'] if row['price'] is not None else Decimal('0.00')
@@ -301,31 +305,74 @@ class Order(models.Model):
         # Подбираем рестораны или подставляем выбранный
         for o in orders_map.values():
             chosen_id = o['restaurant_id']
-            if chosen_id:  # выбран ресторан: показываем только его
-                o['restaurants'] = [{
-                    'id': chosen_id,
-                    'name': rest_names.get(chosen_id, '—'),
-                }]
+            required = o['products']
+            o_latlon = o['order_coords']
+
+            def build_rest_entry(rid: int):
+                r_latlon = rest_coords.get(rid)
+                dist_km = None
+                if o_latlon and r_latlon:
+                    try:
+                        dist_km = round(geopy_distance(o_latlon, r_latlon).km, 2)
+                    except Exception:
+                        dist_km = None
+                return {
+                    'id': rid,
+                    'name': rest_names.get(rid, '—'),
+                    'address': rest_addresses.get(rid) or '',
+                    'coords': r_latlon or '',
+                    'distance_km': dist_km or 'неизвестно',  # float|None
+                }
+
+            if chosen_id:
+                # выбран ресторан: показываем только его
+                o['restaurants'] = [build_rest_entry(chosen_id)]
             else:
-                required = o['products']
                 fits = []
-                # Проверяем покрытие: ресторан подходит, если его товары >= товары заказа
                 for rid, products in rest_products.items():
                     if required.issubset(products):
-                        fits.append({'id': rid, 'name': rest_names.get(rid, '—')})
+                        fits.append(build_rest_entry(rid))
+                # сортируем по расстоянию: сначала те, у кого расстояние посчитано (по возрастанию), затем None
+                fits.sort(key=lambda r: (r['distance_km'] is None,
+                                         r['distance_km'] if r['distance_km'] is not None else float('inf')))
                 o['restaurants'] = fits
-            # Чтобы шаблон мог итерироваться
-            o['products'] = list(o['products'])
 
-            # Флаг для сортировки: без выбранного — сверху (False < True)
+                # чтобы шаблон мог итерироваться
+            o['products'] = list(o['products'])
+            # флаг для сортировки: без выбранного — сверху
             o['has_restaurant'] = bool(chosen_id)
-        # Итоговый отсортированный список
+
+            # --- Итоговый список: необработанные сверху, далее по времени ---
         orders_list = sorted(
             orders_map.values(),
             key=lambda x: (x['has_restaurant'], -x['created_at'].timestamp())
         )
 
         return orders_list
+
+
+class OrderItemQuerySet(models.QuerySet):
+    def active_flat_rows(self):
+        """Один плоский набор строк: заказы и позиции"""
+        return (
+            self.exclude(order__status='delivered')
+            .values(
+                'order_id',
+                'order__status',
+                'order__payment_method',
+                'order__firstname',
+                'order__lastname',
+                'order__phonenumber',
+                'order__address',
+                'order__comment',
+                'order__created_at',
+                'order__restaurant_id',
+                'product_id',
+                'price',
+                'quantity',
+            )
+            .order_by('order_id')
+        )
 
 
 class OrderItem(models.Model):
@@ -353,6 +400,8 @@ class OrderItem(models.Model):
         validators=[MinValueValidator(0)],
     )
 
+    objects = OrderItemQuerySet.as_manager()
+
     class Meta:
         verbose_name = 'Элемент заказа'
         verbose_name_plural = 'Элементы заказа'
@@ -362,3 +411,21 @@ class OrderItem(models.Model):
 
     def __str__(self) -> str:
         return f'{self.product.name} - {self.order.full_name}'
+
+
+def fetch_coordinates(apikey, address):
+    base_url = 'https://geocode-maps.yandex.ru/1.x'
+    response = requests.get(base_url, params={
+        'geocode': address,
+        'apikey': apikey,
+        'format': 'json',
+    })
+    response.raise_for_status()
+    found_places = response.json()['response']['GeoObjectCollection']['featureMember']
+
+    if not found_places:
+        return None
+
+    most_relevant = found_places[0]
+    lon, lat = most_relevant['GeoObject']['Point']['pos'].split(' ')
+    return lat, lon

@@ -105,7 +105,7 @@
                 <summary>Развернуть</summary>
                 <ul>
                   {% for restaurant in item.restaurants %}
-                    <li>{{ restaurant.name }}</li>
+                    <li>{{ restaurant.name }} - {{ restaurant.distance_km }} км</li>
                   {% empty %}
                     <li>Нет ресторана, где есть все позиции</li>
                   {% endfor %}
