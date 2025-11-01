@@ -5,5 +5,5 @@ from geocache.models import GeocodedAddress
 
 @admin.register(GeocodedAddress)
 class GeocodedAddressAdmin(admin.ModelAdmin):
-    list_display = ('address', 'lat', 'lon', 'fetched_at', 'updated_at')
-    search_fields = ('address', 'norm_address')
+    list_display = ('address', 'lat', 'lon', 'updated_at')
+    search_fields = ('address',)

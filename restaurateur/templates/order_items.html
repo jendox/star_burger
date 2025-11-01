@@ -91,7 +91,7 @@
         <tr class="{% if item.has_restaurant %}preparing{% else %}no-restaurant{% endif %}">
           <td>{{ item.order_id }}</td>
           <td>{{ item.status.label }}</td>
-          <td>{{ item.payment_method.label }}</td>
+          <td>{% if item.payment_method %}{{ item.payment_method.label }}{% else %}Не выбран{% endif %}</td>
           <td>{{ item.total_cost }} руб.</td>
           <td>{{ item.client }}</td>
           <td>{{ item.phonenumber }}</td>

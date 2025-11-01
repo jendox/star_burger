@@ -146,7 +146,4 @@ cython_debug/
 Makefile
 .idea/
 .python-version
-
-bundles/
-bundles-src/
-
+main.py

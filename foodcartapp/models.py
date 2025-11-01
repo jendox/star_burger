@@ -1,5 +1,6 @@
 from collections import defaultdict
 from decimal import Decimal
+from typing import Any
 
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -151,12 +152,12 @@ class OrderQuerySet(models.QuerySet):
         )
 
     def active(self) -> QuerySet:
-        return self.exclude(status='delivered').total_cost()
+        return self.exclude(status='delivered')
 
 
 class Order(models.Model):
     class OrderStatusChoices(models.TextChoices):
-        ACCEPTED = 'accepted', 'Принят'
+        NOT_PROCESSED = 'not_processed', 'Не обработан'
         CONFIRMED = 'confirmed', 'Подтвержден'
         PREPARING = 'preparing', 'Готовится'
         READY_FOR_PICKUP = 'ready_for_pickup', 'Готов к выдаче'
@@ -178,6 +179,7 @@ class Order(models.Model):
     )
     phonenumber = PhoneNumberField(
         'Мобильный номер',
+        db_index=True,
     )
     address = models.CharField(
         'Адрес',
@@ -190,14 +192,15 @@ class Order(models.Model):
     status = models.CharField(
         'Статус',
         max_length=16,
-        choices=OrderStatusChoices,
-        default=OrderStatusChoices.ACCEPTED,
+        choices=OrderStatusChoices.choices,
+        default=OrderStatusChoices.NOT_PROCESSED,
         db_index=True,
     )
     payment_method = models.CharField(
         max_length=8,
-        choices=PaymentMethodChoices,
-        default=PaymentMethodChoices.CASH,
+        choices=PaymentMethodChoices.choices,
+        null=True,
+        blank=True,
         db_index=True,
     )
     restaurant = models.ForeignKey(
@@ -245,12 +248,16 @@ class Order(models.Model):
         order_rows = list(OrderItem.objects.active_flat_rows())
         # Получаем рестораны с доступными продуктами
         menu_rows = list(RestaurantMenuItem.objects.available_menu_rows())
+        # Получаем координаты для всех адресов
+        addresses_map = cls._build_addresses_map(order_rows, menu_rows)
         # Группируем рестораны по продуктам
-        rest_products, rest_names, rest_addresses, rest_coords = cls._build_restorant_indexes(menu_rows)
+        rest_products, rest_names, rest_addresses, rest_coordinates = cls._build_restorant_indexes(
+            menu_rows, addresses_map
+        )
         # Группируем строки заказа в заказы
-        orders_map = cls._group_orders(order_rows)
+        orders_map = cls._group_orders(order_rows, addresses_map)
         # Подбираем рестораны или подставляем выбранный
-        cls._attach_restaurants(orders_map, rest_products, rest_names, rest_addresses, rest_coords)
+        cls._attach_restaurants(orders_map, rest_products, rest_names, rest_addresses, rest_coordinates)
         # Итоговый список: необработанные сверху, далее по времени
         return sorted(
             orders_map.values(),
@@ -258,32 +265,33 @@ class Order(models.Model):
         )
 
     @staticmethod
-    def _build_restorant_indexes(menu_rows):
+    def _build_restorant_indexes(menu_rows: list, address_map: dict) -> tuple:
         rest_products = defaultdict(set)
         rest_names: dict[int, str] = {}
         rest_addresses: dict[int, str] = {}
-        rest_coords: dict[int, tuple[float, float] | None] = {}
+        rest_coordinates: dict[int, tuple[float, float] | None] = {}
 
         for row in menu_rows:
-            rid = row['restaurant_id']
-            rest_products[rid].add(row['product_id'])
-            rest_names[rid] = row['restaurant__name']
-            rest_addresses.setdefault(rid, row['restaurant__address'] or '')
-            for rid, address in rest_addresses.items():
-                rest_coords[rid] = GeocodedAddress.get_coordinates(address)
-        return rest_products, rest_names, rest_addresses, rest_coords
+            rest_id = row['restaurant_id']
+            rest_products[rest_id].add(row['product_id'])
+            rest_names[rest_id] = row['restaurant__name']
+            address = row['restaurant__address'] or ''
+            rest_addresses[rest_id] = address
+            rest_coordinates[rest_id] = address_map.get(address)
+        return rest_products, rest_names, rest_addresses, rest_coordinates
 
     @staticmethod
-    def _group_orders(order_rows):
+    def _group_orders(order_rows: list, address_map: dict) -> dict[str, Any]:
         orders_map = {}
         for row in order_rows:
-            oid = row['order_id']
-            o = orders_map.get(oid)
-            if not o:
-                o = orders_map[oid] = {
-                    'order_id': oid,
+            order_id = row['order_id']
+            order = orders_map.get(order_id)
+            payment_method = row['order__payment_method']
+            if not order:
+                order = orders_map[order_id] = {
+                    'order_id': order_id,
                     'status': Order.OrderStatusChoices(row['order__status']),
-                    'payment_method': Order.PaymentMethodChoices(row['order__payment_method']),
+                    'payment_method': Order.PaymentMethodChoices(payment_method) if payment_method else None,
                     'client': f"{row['order__firstname']} {row['order__lastname']}",
                     'phonenumber': row['order__phonenumber'],
                     'address': row['order__address'],
@@ -293,47 +301,66 @@ class Order(models.Model):
                     'restaurants': [],
                     'products': set(),
                     'total_cost': Decimal('0.00'),
-                    'order_coords': GeocodedAddress.get_coordinates(row['order__address']),
+                    'order_coordinates': address_map[row['order__address']],
                 }
-            o['products'].add(row['product_id'])
+            order['products'].add(row['product_id'])
             price = row['price'] if row['price'] is not None else Decimal('0.00')
-            qty = row['quantity'] or 0
-            o['total_cost'] += (price * qty)
+            quantity = row['quantity'] or 0
+            order['total_cost'] += (price * quantity)
         return orders_map
 
     @staticmethod
-    def _build_rest_entry(rid, rest_names, rest_addresses, rest_coords, order_coords):
-        rest_latlon = rest_coords.get(rid)
-        dist_km = None
-        if order_coords and rest_latlon:
+    def _build_addresses_map(order_rows: list, menu_rows: list) -> dict[str, tuple[float, float] | None]:
+        addresses = (
+            {row['order__address'] for row in order_rows} | {row['restaurant__address'] for row in menu_rows}
+        )
+        return GeocodedAddress.get_coordinates_batch(addresses)
+
+    @staticmethod
+    def _build_rest_entry(
+        restaurant_id: int,
+        rest_names: dict,
+        rest_addresses: dict,
+        rest_coordinates: dict,
+        order_coordinates: tuple,
+    ) -> dict[str, Any]:
+        rest_latlon = rest_coordinates.get(restaurant_id)
+        distance_km = None
+        if order_coordinates and rest_latlon:
             try:
-                dist_km = round(geopy_distance(order_coords, rest_latlon).km, 2)
+                distance_km = round(geopy_distance(order_coordinates, rest_latlon).km, 2)
             except Exception:
                 pass
         return {
-            'id': rid,
-            'name': rest_names.get(rid, '—'),
-            'address': rest_addresses.get(rid) or '',
-            'coords': rest_latlon or '',
-            'distance_km': dist_km or 'неизвестно',
+            'id': restaurant_id,
+            'name': rest_names.get(restaurant_id, '—'),
+            'address': rest_addresses.get(restaurant_id) or '',
+            'coordinates': rest_latlon or '',
+            'distance_km': distance_km,
         }
 
     @classmethod
-    def _attach_restaurants(cls, orders_map, rest_products, rest_names, rest_addresses, rest_coords):
+    def _attach_restaurants(cls, orders_map, rest_products, rest_names, rest_addresses, rest_coordinates):
         for order in orders_map.values():
             chosen_id = order['restaurant_id']
             required = order['products']
-            order_coords = order['order_coords']
+            order_coordinates = order['order_coordinates']
 
             if chosen_id:
                 order['restaurants'] = [
-                    cls._build_rest_entry(chosen_id, rest_names, rest_addresses, rest_coords, order_coords)
+                    cls._build_rest_entry(
+                        chosen_id, rest_names, rest_addresses, rest_coordinates, order_coordinates
+                    )
                 ]
             else:
                 fits = []
-                for rid, prods in rest_products.items():
-                    if required.issubset(prods):
-                        fits.append(cls._build_rest_entry(rid, rest_names, rest_addresses, rest_coords, order_coords))
+                for rid, products in rest_products.items():
+                    if required.issubset(products):
+                        fits.append(
+                            cls._build_rest_entry(
+                                rid, rest_names, rest_addresses, rest_coordinates, order_coordinates
+                            )
+                        )
                 fits.sort(key=lambda r: (r['distance_km'] is None, r['distance_km'] or float('inf')))
                 order['restaurants'] = fits
 

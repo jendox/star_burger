@@ -132,14 +132,6 @@ class OrderAdmin(admin.ModelAdmin):
         OrderItemInline,
     ]
 
-    def save_formset(self, request, form, formset, change):
-        instances = formset.save(commit=False)
-        for instance in instances:
-            if not instance.pk and not instance.price and instance.product:
-                instance.price = instance.product.price
-            instance.save()
-        formset.save_m2m()
-
     def response_change(self, request, obj):
         result = super().response_change(request, obj)
         redirect_url = request.GET.get('next')
@@ -151,11 +143,11 @@ class OrderAdmin(admin.ModelAdmin):
         if change:
             changed = set(form.changed_data)
             if 'restaurant' in changed and obj.restaurant_id and obj.status in {
-                Order.OrderStatusChoices.ACCEPTED,
+                Order.OrderStatusChoices.NOT_PROCESSED,
                 Order.OrderStatusChoices.CONFIRMED,
             }:
                 obj.status = Order.OrderStatusChoices.PREPARING
 
-            if 'called_at' in changed and obj.called_at and obj.status == Order.OrderStatusChoices.ACCEPTED:
+            if 'called_at' in changed and obj.called_at and obj.status == Order.OrderStatusChoices.NOT_PROCESSED:
                 obj.status = Order.OrderStatusChoices.CONFIRMED
         super().save_model(request, obj, form, change)
