@@ -61,6 +61,11 @@
   tr.no-restaurant td {
     border-top: 2px solid #ffd8b4;
   }
+
+  .geocoding-failed {
+    color: #D63031;
+    font-weight: bold;
+  }
 </style>
 
   <center>
@@ -95,22 +100,30 @@
           <td>{{ item.total_cost }} руб.</td>
           <td>{{ item.client }}</td>
           <td>{{ item.phonenumber }}</td>
-          <td>{{ item.address }}</td>
+          <td {% if not item.order_coordinates %}class="geocoding-failed"{% endif %}>
+            {{ item.address }}
+          </td>
           <td>{{ item.comment }}</td>
           <td>
             {% if item.has_restaurant %}
               {{ item.restaurants.0.name }}
             {% else %}
-              <details>
-                <summary>Развернуть</summary>
-                <ul>
-                  {% for restaurant in item.restaurants %}
-                    <li>{{ restaurant.name }} - {{ restaurant.distance_km }} км</li>
-                  {% empty %}
-                    <li>Нет ресторана, где есть все позиции</li>
-                  {% endfor %}
-                </ul>
-              </details>
+              {% if item.order_coordinates %}
+                {% if item.restaurants %}
+                  <details>
+                    <summary>Развернуть</summary>
+                    <ul>
+                      {% for restaurant in item.restaurants %}
+                        <li>{{ restaurant.name }} - {{ restaurant.distance_km }} км</li>
+                      {% endfor %}
+                    </ul>
+                  </details>
+                {% else %}
+                  <span>Нет подходящего ресторана</span>
+                {% endif %}
+              {% else %}
+                <span class="geocoding-failed">Адрес не найден</span>
+              {% endif %}
             {% endif %}
           </td>
           <td>
