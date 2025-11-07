@@ -147,3 +147,7 @@ Makefile
 .idea/
 .python-version
 main.py
+
+postgres_data/
+docker-compose.yml
+datadump.json

@@ -46,6 +46,11 @@ uv sync
 SECRET_KEY=django-insecure-0if40nf4nf93n4
 ```
 
+В качестве СУБД используется Postgres. Добавьте в `.env` переменную окружения `DATABASE_URL`:
+```sh
+DATABASE_URL=postgres://user:pasword@localhost:5432/db_name
+```
+
 Для работы кодера добавьте в файл `.env` переменную окружения `YANDEX_GEOCODER_API_KEY`:
 ```sh
 YANDEX_GEOCODER_API_KEY=your-geocoder-api-key
@@ -147,6 +152,7 @@ Parcel будет следить за файлами в каталоге `bundle
 - `ALLOWED_HOSTS` — [см. документацию Django](https://docs.djangoproject.com/en/5.2/ref/settings/#allowed-hosts)
 - `YANDEX_GEOCODER_API_KEY` — API ключ для Яндекс Геокодера.
 - `ROLLBAR_ACCESS_TOKEN` - токен для работы системы логирования Roolbar.
+- `DATABASE_URL` - настройки доступа к БД.
 
 ## Цели проекта
 
