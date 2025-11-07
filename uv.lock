@@ -318,6 +318,18 @@ wheels = [
 ]
 
 [[package]]
+name = "rollbar"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d2/43/966a7d64ff2c0901451aa2fcbe205a68528b6c6fbac6760b5ad5a705a944/rollbar-1.3.0.tar.gz", hash = "sha256:519402eac39bcc4fa484821872f6bb18497fb7b6c81167047867d17714d3b379", size = 85300, upload-time = "2025-03-26T15:12:19.274Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/d2/b6bf3f24349bc3bc681522fa8c55271923614b47e5e9d923f443523de81a/rollbar-1.3.0-py3-none-any.whl", hash = "sha256:d800c4265a4d5aae547cb3f29e48414b6d4fedaa7f679cd0fd64dac16a1eded3", size = 117183, upload-time = "2025-03-26T15:12:17.828Z" },
+]
+
+[[package]]
 name = "sqlparse"
 version = "0.5.3"
 source = { registry = "https://pypi.org/simple" }
@@ -341,6 +353,7 @@ dependencies = [
     { name = "markdown" },
     { name = "pillow" },
     { name = "requests" },
+    { name = "rollbar" },
 ]
 
 [package.metadata]
@@ -355,6 +368,7 @@ requires-dist = [
     { name = "markdown", specifier = ">=3.9" },
     { name = "pillow", specifier = "==11.2.*" },
     { name = "requests", specifier = ">=2.32.5" },
+    { name = "rollbar", specifier = ">=1.3.0" },
 ]
 
 [[package]]
