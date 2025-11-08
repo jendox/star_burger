@@ -185,6 +185,7 @@ Parcel будет следить за файлами в каталоге `bundle
 ```bash
 chmod +x deploy_star_burger.sh
 ```
+
 #### Убедитесь, что в скрипте правильные пути:
 - `PROJECT_DIR` - путь к вашему проекту
 - `SERVICE_NAME` - имя вашего systemd сервиса
