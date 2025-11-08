@@ -148,6 +148,7 @@ Makefile
 .python-version
 main.py
 
+staticfiles/
 postgres_data/
 docker-compose.yml
 datadump.json
