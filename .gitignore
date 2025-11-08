@@ -152,3 +152,4 @@ staticfiles/
 postgres_data/
 docker-compose.yml
 datadump.json
+package-lock.json
