@@ -62,6 +62,10 @@ YANDEX_GEOCODER_API_KEY=your-geocoder-api-key
 ```sh
 ROLLBAR_ACCESS_TOKEN=your-rollbar-access-token
 ```
+Также укажите название окружения в переменной `ROLLBAR_ENV` (значение по-умолчанию "development"):
+```sh
+ROLLBAR_ENV=production
+```
 
 Создайте файл базы данных SQLite и отмигрируйте её следующей командой:
 
@@ -153,6 +157,7 @@ Parcel будет следить за файлами в каталоге `bundle
 - `ALLOWED_HOSTS` — [см. документацию Django](https://docs.djangoproject.com/en/5.2/ref/settings/#allowed-hosts)
 - `YANDEX_GEOCODER_API_KEY` — API ключ для Яндекс Геокодера.
 - `ROLLBAR_ACCESS_TOKEN` - токен для работы системы логирования Roolbar.
+- `ROLLBAR_ENV` - название окружения для системы логирования Roolbar.
 - `DATABASE_URL` - настройки доступа к БД.
 
 ## Цели проекта
