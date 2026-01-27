@@ -3,6 +3,7 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     VIRTUAL_ENV=/app/.venv \
+    SECRET_KEY=${SECRET_KEY} \
     PATH="/app/.venv/bin:$PATH"
 
 WORKDIR /app

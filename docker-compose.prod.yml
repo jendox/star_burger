@@ -12,6 +12,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend.prod
+      args:
+        SECRET_KEY: ${SECRET_KEY:-default-secret-key}
     image: star-burger-backend-prod:latest
     restart: unless-stopped
     env_file:
