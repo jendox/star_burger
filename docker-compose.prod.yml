@@ -22,10 +22,10 @@ services:
       - node
     volumes:
       - .env:/app/.env:ro
-      - ./assets:/app/assets
-      - ./bundles:/app/bundles
-      - ./media:/app/media
-      - ./staticfiles:/app/staticfiles
+      - /opt/star_burger/assets:/app/assets
+      - /opt/star_burger/bundles:/app/bundles
+      - /opt/star_burger/media:/app/media
+      - /opt/star_burger/staticfiles:/app/staticfiles
     command: >
       gunicorn star_burger.wsgi:application
       --bind 0.0.0.0:8080
