@@ -28,7 +28,7 @@ services:
       - ./staticfiles:/app/staticfiles
     command: >
       gunicorn star_burger.wsgi:application
-      --bind 0.0.0.0:8000
+      --bind 127.0.0.1:8080
       --workers 3
       --access-logfile -
       --error-logfile -
