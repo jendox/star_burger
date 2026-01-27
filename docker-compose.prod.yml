@@ -17,10 +17,7 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy
-      node:
-        condition: service_started
+      - node
     volumes:
       - .env:/app/.env:ro
       - ./assets:/app/assets
