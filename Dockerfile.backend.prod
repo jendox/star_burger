@@ -18,3 +18,7 @@ RUN pip install --no-cache-dir uv \
 RUN uv pip install --no-cache-dir gunicorn
 
 COPY . /app
+
+RUN python manage.py collectstatic --noinput
+
+COPY /app/staticfiles ./staticfiles
