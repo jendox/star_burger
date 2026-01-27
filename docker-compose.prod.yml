@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.frontend.prod
     image: star-burger-front-prod:latest
-    restart: unless-stopped
+    restart: no
     volumes:
       - ./bundles:/app/bundles
 
