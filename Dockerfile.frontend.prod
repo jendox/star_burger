@@ -1,9 +1,17 @@
-FROM node:16.16.0-slim
+FROM node:16.16.0-slim as builder
 
 WORKDIR /app
 
 COPY bundles-src/ /app/bundles-src
 COPY assets/ /app/assets
 COPY package.json /app/
+
 RUN npm install --include=dev
-RUN .\node_modules\.bin\parcel watch bundles-src/index.js --dist-dir bundles --public-url="./"
+
+RUN npx parcel build bundles-src/index.js --dist-dir bundles --public-url="./"
+
+FROM node:16.16.0-alpine
+
+WORKDIR /app
+
+COPY --from=builder /app/bundles /app/bundles
