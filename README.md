@@ -144,21 +144,36 @@ Parcel будет следить за файлами в каталоге `bundle
 
 ## Как запустить prod-версию сайта
 
-Собрать фронтенд:
-
-```sh
-./node_modules/.bin/parcel build bundles-src/index.js --dist-dir bundles --public-url="./"
-```
-
-Настроить бэкенд: создать файл `.env` в каталоге `star_burger/` со следующими настройками:
+Создать файл `.env` в каталоге `star_burger/` со следующими настройками:
 
 - `DEBUG` — дебаг-режим. Поставьте `False`.
 - `SECRET_KEY` — секретный ключ проекта. Он отвечает за шифрование на сайте. Например, им зашифрованы все пароли на вашем сайте.
 - `ALLOWED_HOSTS` — [см. документацию Django](https://docs.djangoproject.com/en/5.2/ref/settings/#allowed-hosts)
+- `CSRF_TRUSTED_ORIGINS` — [см.документацию Django](https://docs.djangoproject.com/en/5.2/ref/settings/#csrf-trusted-origins)
 - `YANDEX_GEOCODER_API_KEY` — API ключ для Яндекс Геокодера.
 - `ROLLBAR_ACCESS_TOKEN` - токен для работы системы логирования Roolbar.
 - `ROLLBAR_ENV` - название окружения для системы логирования Roolbar.
 - `DATABASE_URL` - настройки доступа к БД.
+
+Получаем последние обновления из репозитория:
+```bash
+git pull
+```
+
+Запускаем сайт с помощью докер:
+```bash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Собираем статику:
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py collectstatic --noinput
+```
+
+Применяем миграции к базе данных:
+```bash
+docker compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput
+```
 
 ## Цели проекта
 
@@ -167,6 +182,7 @@ Parcel будет следить за файлами в каталоге `bundle
 Где используется репозиторий:
 
 - Второй и третий урок [учебного курса Django](https://dvmn.org/modules/django/)
+- Второй урок [учебного курса Docker](https://dvmn.org/modules/docker-v2/lesson/dockerize-django/)
 
 ## Быстрое обновление на prod-сервере
 
@@ -177,12 +193,9 @@ Parcel будет следить за файлами в каталоге `bundle
 
 Скрипт автоматически выполнит:
 - Обновление кода из репозитория
-- Установку Python-зависимостей через uv
-- Установку Node.js-зависимостей через npm
-- Сборку фронтенда через Parcel
+- Пересборку и запуск контейнеров Docker
 - Применение миграций базы данных
 - Сбор статических файлов Django
-- Перезапуск сервиса Systemd
 
 В случае ошибки на любом этапе скрипт остановится и не пойдёт дальше.
 
@@ -197,5 +210,7 @@ chmod +x deploy_star_burger.sh
 #### Убедитесь, что в скрипте правильные пути:
 - `PROJECT_DIR` - путь к вашему проекту
 - `SERVICE_NAME` - имя вашего systemd сервиса
-- `UV_PATH` - путь к uv
+- `COMPOSE_FILE` - имя docker-compose файла
+- `DOCKER` - путь к докеру (можно получить через `which docker`)
+- `USE_SYSTEMD` - 1, если нужен рестарт через systemd (по умолчанию 0)
 
