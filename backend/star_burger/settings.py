@@ -3,10 +3,20 @@ import os
 import dj_database_url
 from environs import Env
 
-env = Env()
-env.read_env()
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+env = Env()
+env_path_candidates = [
+    os.path.join(BASE_DIR, ".env"),
+    os.path.join(os.path.dirname(BASE_DIR), ".env"),
+]
+for env_path in env_path_candidates:
+    if os.path.exists(env_path):
+        env.read_env(env_path)
+        break
+else:
+    env.read_env()
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 SECRET_KEY = env('SECRET_KEY')

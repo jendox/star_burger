@@ -20,21 +20,23 @@ services:
 
   node:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend.dev
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     image: star-burger-front-dev:latest
     restart: unless-stopped
     volumes:
-      - ./bundles:/app/bundles
+      - ./backend/bundles:/app/bundles
 
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.backend.dev
+      context: ./backend
+      dockerfile: Dockerfile.dev
     image: star-burger-backend-dev:latest
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DEBUG: "True"
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,9 +44,9 @@ services:
         condition: service_started
     volumes:
       - .env:/app/.env:ro
-      - ./assets:/app/assets
-      - ./bundles:/app/bundles
-      - ./media:/app/media
+      - ./backend/assets:/app/assets
+      - ./backend/bundles:/app/bundles
+      - ./backend/media:/app/media
     ports:
       - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000

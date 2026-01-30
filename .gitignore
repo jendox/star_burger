@@ -1,6 +1,6 @@
-bundles/**
-node_modules/
-media/
+backend/bundles/**
+frontend/node_modules/
+backend/media/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -141,15 +141,15 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-.parcel-cache/
+frontend/.parcel-cache/
 .nvmrc
 Makefile
 .idea/
 .python-version
 main.py
 
-staticfiles/
+backend/staticfiles/
 postgres_data/
 docker-compose.yml
-datadump.json
-package-lock.json
+backend/datadump.json
+frontend/package-lock.json

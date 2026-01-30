@@ -1,17 +1,17 @@
 services:
   node:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend.prod
+      context: ./frontend
+      dockerfile: Dockerfile.prod
     image: star-burger-front-prod:latest
     restart: no
     volumes:
-      - ./bundles:/app/bundles
+      - /opt/star_burger/bundles:/out
 
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.backend.prod
+      context: ./backend
+      dockerfile: Dockerfile.prod
       args:
         SECRET_KEY: ${SECRET_KEY:-default-secret-key}
     image: star-burger-backend-prod:latest
@@ -19,10 +19,10 @@ services:
     env_file:
       - .env
     depends_on:
-      - node
+      node:
+        condition: service_completed_successfully
     volumes:
       - .env:/app/.env:ro
-      - /opt/star_burger/assets:/app/assets
       - /opt/star_burger/bundles:/app/bundles
       - /opt/star_burger/media:/app/media
       - /opt/star_burger/staticfiles:/app/staticfiles
